@@ -7,7 +7,11 @@ User = get_user_model()
 
 class Group(models.Model):
     title = models.CharField(_("Название"), max_length=200)
-    slug = models.SlugField(_("Слаг"), max_length=100, unique=True)
+    slug = models.SlugField(
+        _("Идентификатор страницы"),
+        max_length=50,
+        unique=True
+    )
     description = models.TextField(_("Описание"))
 
     class Meta:
