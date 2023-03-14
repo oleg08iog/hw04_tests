@@ -8,7 +8,7 @@ User = get_user_model()
 class Group(models.Model):
     title = models.CharField(_("Название"), max_length=200)
     slug = models.SlugField(
-        _("Идентификатор страницы"),
+        _("Идентификатор"),
         max_length=50,
         unique=True
     )

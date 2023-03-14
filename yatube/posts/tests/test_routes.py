@@ -1,48 +1,23 @@
-from django.test import Client, TestCase
+from django.test import TestCase
 from django.urls import reverse
-from posts.models import Group, Post, User
 
 USERNAME = 'author'
 SLUG = 'test-slug'
-
-HOME_URL = reverse('posts:index')
-GROUP_LIST_URL = reverse('posts:group_list', args=[SLUG])
-PROFILE_URL = reverse('posts:profile', args=[USERNAME])
-POST_CREATE_URL = reverse('posts:post_create')
+POST_ID = 1
 
 
 class RouteTests(TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.user = User.objects.create(username=USERNAME)
-        cls.group = Group.objects.create(
-            title='Тестовая группа',
-            slug=SLUG,
-            description='Тестовое описание',
-        )
-        cls.post = Post.objects.create(
-            author=cls.user,
-            text='Тестовый пост',
-        )
-        cls.POST_DETAIL_URL = reverse('posts:post_detail', args=[cls.post.id])
-        cls.POST_EDIT_URL = reverse('posts:post_edit', args=[cls.post.id])
-
-    def setUp(self):
-        # Создаем неавторизованный клиент
-        self.client = Client()
-
     def test_route_calculations(self):
         """Расчеты дают ожидаемые URL-адреса"""
         # Шаблоны по адресам
-        test_cases = {
-            '/': HOME_URL,
-            f'/group/{self.group.slug}/': GROUP_LIST_URL,
-            f'/profile/{self.user.username}/': PROFILE_URL,
-            f'/posts/{self.post.id}/': self.POST_DETAIL_URL,
-            f'/posts/{self.post.id}/edit/': self.POST_EDIT_URL,
-            '/create/': POST_CREATE_URL,
-        }
-        for address, expected_url in test_cases.items():
-            with self.subTest(address=address):
-                self.assertEqual(address, expected_url)
+        test_cases = [
+            ('/', 'posts:index', []),
+            (f'/group/{SLUG}/', 'posts:group_list', [SLUG]),
+            (f'/profile/{USERNAME}/', 'posts:profile', [USERNAME]),
+            (f'/posts/{POST_ID}/', 'posts:post_detail', [POST_ID]),
+            (f'/posts/{POST_ID}/edit/', 'posts:post_edit', [POST_ID]),
+            ('/create/', 'posts:post_create', []),
+        ]
+        for address, routes, args in test_cases:
+            with self.subTest(routes):
+                self.assertEqual(address, reverse(routes, args=args))

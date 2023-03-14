@@ -1,7 +1,6 @@
-from http import HTTPStatus
-
 from django.test import Client, TestCase
 from django.urls import reverse
+
 from posts.models import Group, Post, User
 
 USERNAME = 'author'
@@ -11,6 +10,7 @@ HOME_URL = reverse('posts:index')
 GROUP_LIST_URL = reverse('posts:group_list', args=[SLUG])
 PROFILE_URL = reverse('posts:profile', args=[USERNAME])
 POST_CREATE_URL = reverse('posts:post_create')
+REDIRECT_POST_CREATE = reverse('users:login') + '?next=' + POST_CREATE_URL
 
 
 class PostURLTests(TestCase):
@@ -30,70 +30,66 @@ class PostURLTests(TestCase):
         )
         cls.POST_DETAIL_URL = reverse('posts:post_detail', args=[cls.post.id])
         cls.POST_EDIT_URL = reverse('posts:post_edit', args=[cls.post.id])
+        cls.REDIRECT_POST_EDIT = reverse(
+            'users:login') + '?next=' + cls.POST_EDIT_URL
 
     def setUp(self):
         # Создаем неавторизованный клиент
-        self.guest_client = Client()
+        self.guest = Client()
         # Создаем второй клиент
-        self.authorized_client = Client()
+        self.author = Client()
         # Авторизуем пользователя
-        self.authorized_client.force_login(self.user)
-        self.not_author_client = Client()
-        self.not_author_client.force_login(self.user_not_author)
+        self.author.force_login(self.user)
+        self.another = Client()
+        self.another.force_login(self.user_not_author)
 
     # Проверяем доступность страниц для разных пользователей
     def test_urls_exist_at_desired_locations(self):
         """Проверка доступности и использования правильных шаблонов
         для всех типов пользователей."""
         test_cases = [
-            (HOME_URL, self.guest_client, HTTPStatus.OK),
-            (GROUP_LIST_URL, self.guest_client, HTTPStatus.OK),
-            (PROFILE_URL, self.guest_client, HTTPStatus.OK),
-            (self.POST_DETAIL_URL, self.guest_client, HTTPStatus.OK),
-            (POST_CREATE_URL, self.authorized_client, HTTPStatus.OK),
-            (self.POST_EDIT_URL, self.authorized_client, HTTPStatus.OK),
-            (self.POST_EDIT_URL, self.not_author_client, HTTPStatus.FOUND),
-            ('/unexisting_page/', self.guest_client, HTTPStatus.NOT_FOUND),
+            (HOME_URL, self.guest, 200),
+            (GROUP_LIST_URL, self.guest, 200),
+            (PROFILE_URL, self.guest, 200),
+            (self.POST_DETAIL_URL, self.guest, 200),
+            (POST_CREATE_URL, self.author, 200),
+            (self.POST_EDIT_URL, self.author, 200),
+            (self.POST_EDIT_URL, self.another, 302),
+            (POST_CREATE_URL, self.guest, 302),
+            (self.POST_EDIT_URL, self.guest, 302),
+            ('/unexisting_page/', self.guest, 404),
         ]
-        for url, client, expected_status_code in test_cases:
-            with self.subTest(url=url):
-                self.assertEqual(
-                    client.get(url).status_code,
-                    expected_status_code
-                )
+        for url, client, code in test_cases:
+            with self.subTest(url=url, code=code):
+                self.assertEqual(client.get(url).status_code, code)
 
     # Проверяем редиректы для неавторизованного пользователя
     def test_redirect_anonymous_on_auth_login(self):
         """Страница перенаправит анонимного пользователя"""
         urls_redirect = [
-            (POST_CREATE_URL, self.guest_client,
-             reverse('users:login') + '?next=' + POST_CREATE_URL),
-            (self.POST_EDIT_URL, self.guest_client,
-             reverse('users:login') + '?next=' + self.POST_EDIT_URL),
-            (self.POST_EDIT_URL, self.not_author_client,
-             self.POST_DETAIL_URL)
+            (POST_CREATE_URL, self.guest, REDIRECT_POST_CREATE),
+            (self.POST_EDIT_URL, self.guest, self.REDIRECT_POST_EDIT),
+            (self.POST_EDIT_URL, self.another, self.POST_DETAIL_URL)
         ]
-        for url, client, expected_redirect in urls_redirect:
-            with self.subTest(url=url):
+        for url, client, redirect in urls_redirect:
+            with self.subTest(url=url, redirect=redirect):
                 self.assertRedirects(
-                    client.get(url, follow=True),
-                    expected_redirect
-                )
+                    client.get(url, follow=True), redirect)
 
     def test_urls_uses_correct_template(self):
         """URL-адрес использует соответствующий шаблон."""
         # Шаблоны по адресам
         templates_url_names = {
-            '/': 'posts/index.html',
-            f'/group/{self.group.slug}/': 'posts/group_list.html',
-            f'/profile/{self.user.username}/': 'posts/profile.html',
-            f'/posts/{self.post.id}/': 'posts/post_detail.html',
-            f'/posts/{self.post.id}/edit/': 'posts/create_post.html',
-            '/create/': 'posts/create_post.html',
+            HOME_URL: 'posts/index.html',
+            GROUP_LIST_URL: 'posts/group_list.html',
+            PROFILE_URL: 'posts/profile.html',
+            self.POST_DETAIL_URL: 'posts/post_detail.html',
+            self.POST_EDIT_URL: 'posts/create_post.html',
+            POST_CREATE_URL: 'posts/create_post.html',
         }
         for address, template in templates_url_names.items():
             with self.subTest(address=address):
                 self.assertTemplateUsed(
-                    self.authorized_client.get(address),
+                    self.author.get(address),
                     template
                 )

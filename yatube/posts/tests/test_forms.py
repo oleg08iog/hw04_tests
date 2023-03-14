@@ -1,5 +1,7 @@
+from django import forms
 from django.test import Client, TestCase
 from django.urls import reverse
+
 from posts.forms import PostForm
 from posts.models import Group, Post, User
 
@@ -31,7 +33,6 @@ class PostFormTests(TestCase):
             text='Тестовый пост',
             group=cls.group
         )
-        cls.form = PostForm()
         cls.POST_DETAIL_URL = reverse('posts:post_detail', args=[cls.post.id])
         cls.POST_EDIT_URL = reverse('posts:post_edit', args=[cls.post.id])
 
@@ -43,12 +44,10 @@ class PostFormTests(TestCase):
 
     def test_create_post(self):
         """Валидная форма создает запись поста."""
-        # Подсчитаем количество постов
         test_posts = set(Post.objects.all())
         form_data = {
             'text': 'Текст для теста 1',
             'group': self.group.id,
-            'author': self.user
         }
         # Отправляем POST-запрос
         response = self.authorized_client.post(
@@ -56,13 +55,13 @@ class PostFormTests(TestCase):
             data=form_data,
             follow=True
         )
-        created_post = list(set(Post.objects.all()) - test_posts)
-        post = created_post[-1]
+        created_post = set(Post.objects.all()) - test_posts
+        self.assertEqual(len(created_post), 1)
+        post = created_post.pop()
         self.assertEqual(post.text, form_data['text'])
         self.assertEqual(post.group.id, form_data['group'])
-        self.assertEqual(post.author, form_data['author'])
+        self.assertEqual(post.author, self.user)
         self.assertRedirects(response, PROFILE_URL)
-        self.assertEqual(len(created_post), 1)
 
     def test_post_edit(self):
         """Валидная форма редактирует запись поста."""
@@ -76,12 +75,14 @@ class PostFormTests(TestCase):
             follow=True
         )
         self.assertRedirects(response, self.POST_DETAIL_URL)
-        update_post = Post.objects.get(id=self.post.id)
-        self.assertEqual(update_post.text, form_data['text'])
-        self.assertEqual(update_post.group.id, form_data['group'])
+        post = Post.objects.get(id=self.post.id)
+        self.assertEqual(post.text, form_data['text'])
+        self.assertEqual(post.group.id, form_data['group'])
+        self.assertEqual(post.author, self.user)
 
     def test_labels_and_help_text(self):
         """Проверяем labels и help_text формы"""
+        form = PostForm()
         field_tests = [
             ('text', 'Текст поста', 'Текст нового поста'),
             ('group', 'Группа', 'Группа, к которой будет относится новый пост')
@@ -89,12 +90,25 @@ class PostFormTests(TestCase):
 
         for field_name, expected_label, expected_help_text in field_tests:
             with self.subTest(field_name=field_name):
-                field = PostFormTests.form.fields[field_name]
+                field = form.fields[field_name]
                 self.assertEqual(field.label, expected_label)
                 self.assertEqual(field.help_text, expected_help_text)
+                self.assertTrue(
+                    isinstance(form.fields['text'], forms.CharField)
+                )
+                self.assertTrue(
+                    isinstance(form.fields['group'], forms.ModelChoiceField)
+                )
 
     def test_post_create_page_show_correct_context(self):
         """Шаблон post_create сформирован с правильным контекстом."""
         response = self.authorized_client.get(POST_CREATE_URL)
         form_instance = response.context.get('form')
         self.assertIsInstance(form_instance, PostForm)
+
+    def test_post_edit_page_show_correct_context(self):
+        """Шаблон post_edit сформирован с правильным контекстом."""
+        response = self.authorized_client.get(self.POST_EDIT_URL)
+        form_instance = response.context.get('form').instance.id
+        self.assertEqual(form_instance, self.post.id)
+        self.assertIsInstance(response.context['post'], Post)

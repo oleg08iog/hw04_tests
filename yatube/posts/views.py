@@ -5,16 +5,17 @@ from django.shortcuts import get_object_or_404, redirect, render
 from yatube.settings import POSTS_PER_PAGE
 
 from .forms import PostForm
+
 from .models import Group, Post, User
 
 
-def get_paginated_posts(request, posts):
+def get_paginated_pages(request, posts):
     return Paginator(posts, POSTS_PER_PAGE).get_page(request.GET.get('page'))
 
 
 def index(request):
     return render(request, 'posts/index.html', {
-        'page_obj': get_paginated_posts(request, Post.objects.all()),
+        'page_obj': get_paginated_pages(request, Post.objects.all()),
     })
 
 
@@ -22,7 +23,7 @@ def group_posts(request, slug):
     group = get_object_or_404(Group, slug=slug)
     return render(request, 'posts/group_list.html', {
         'group': group,
-        'page_obj': get_paginated_posts(request, group.posts.all())
+        'page_obj': get_paginated_pages(request, group.posts.all())
     })
 
 
@@ -30,7 +31,7 @@ def profile(request, username):
     author = get_object_or_404(User, username=username)
     return render(request, 'posts/profile.html', {
         'author': author,
-        'page_obj': get_paginated_posts(request,
+        'page_obj': get_paginated_pages(request,
                                         author.posts.all()),
     })
 
