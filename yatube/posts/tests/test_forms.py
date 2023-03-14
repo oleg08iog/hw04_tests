@@ -60,7 +60,7 @@ class PostFormTests(TestCase):
         post = created_post.pop()
         self.assertEqual(post.text, form_data['text'])
         self.assertEqual(post.group.id, form_data['group'])
-        self.assertEqual(post.author, self.user)
+        self.assertEqual(post.author, self.post.author)
         self.assertRedirects(response, PROFILE_URL)
 
     def test_post_edit(self):
@@ -93,12 +93,10 @@ class PostFormTests(TestCase):
                 field = form.fields[field_name]
                 self.assertEqual(field.label, expected_label)
                 self.assertEqual(field.help_text, expected_help_text)
-                self.assertTrue(
-                    isinstance(form.fields['text'], forms.CharField)
-                )
-                self.assertTrue(
-                    isinstance(form.fields['group'], forms.ModelChoiceField)
-                )
+                if field_name == 'text':
+                    self.assertEqual(type(field), forms.CharField)
+                elif field_name == 'group':
+                    self.assertEqual(type(field), forms.ModelChoiceField)
 
     def test_post_create_page_show_correct_context(self):
         """Шаблон post_create сформирован с правильным контекстом."""

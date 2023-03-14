@@ -10,7 +10,7 @@ HOME_URL = reverse('posts:index')
 GROUP_LIST_URL = reverse('posts:group_list', args=[SLUG])
 PROFILE_URL = reverse('posts:profile', args=[USERNAME])
 POST_CREATE_URL = reverse('posts:post_create')
-REDIRECT_POST_CREATE = reverse('users:login') + '?next=' + POST_CREATE_URL
+REDIRECT_POST_CREATE = f"{reverse('users:login')}?next={POST_CREATE_URL}"
 
 
 class PostURLTests(TestCase):
@@ -30,8 +30,8 @@ class PostURLTests(TestCase):
         )
         cls.POST_DETAIL_URL = reverse('posts:post_detail', args=[cls.post.id])
         cls.POST_EDIT_URL = reverse('posts:post_edit', args=[cls.post.id])
-        cls.REDIRECT_POST_EDIT = reverse(
-            'users:login') + '?next=' + cls.POST_EDIT_URL
+        cls.REDIRECT_POST_EDIT = (f"{reverse('users:login')}"
+                                  f"?next={cls.POST_EDIT_URL}")
 
     def setUp(self):
         # Создаем неавторизованный клиент

@@ -11,9 +11,12 @@ SLUG = 'test-slug'
 SLUG2 = 'test-slug-2'
 
 HOME_URL = reverse('posts:index')
+HOME_URL_2_PAGE = f'{HOME_URL}?page=2'
 GROUP_LIST_URL = reverse('posts:group_list', args=[SLUG])
+GROUP_LIST_URL_2_PAGE = f'{GROUP_LIST_URL}?page=2'
 GROUP2_LIST_URL = reverse('posts:group_list', args=[SLUG2])
 PROFILE_URL = reverse('posts:profile', args=[USERNAME])
+PROFILE_URL_2_PAGE = f'{PROFILE_URL}?page=2'
 POST_CREATE_URL = reverse('posts:post_create')
 
 
@@ -22,7 +25,6 @@ class PostURLTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = User.objects.create(username=USERNAME)
-        cls.user_not_author = User.objects.create(username='not_author')
         cls.group = Group.objects.create(
             title='Тестовая группа',
             slug=SLUG,
@@ -61,7 +63,6 @@ class PostURLTests(TestCase):
             with self.subTest(url):
                 if expected_context == 'page_obj':
                     self.assertEqual(len(context['page_obj']), 1)
-                    post = context['page_obj'][0]
                 else:
                     post = context['post']
                     self.assertEqual(post.id, self.post.id)
@@ -69,7 +70,7 @@ class PostURLTests(TestCase):
                     self.assertEqual(post.author, self.post.author)
                     self.assertEqual(post.group, self.post.group)
 
-    def test_post_own_only_one_group(self):
+    def test_post_not_in_second_group(self):
         """Проверяем, что пост не появляется на странице второй группы"""
         response = self.client.get(GROUP2_LIST_URL)
         self.assertNotIn(self.post, response.context['page_obj'])
@@ -82,47 +83,32 @@ class PostURLTests(TestCase):
     def test_group_details(self):
         """Проверяем, что все поля группы отображаются корректно"""
         response = self.client.get(GROUP_LIST_URL)
-        self.assertEqual(
-            response.context['group'].title, self.group.title
-        )
-        self.assertEqual(
-            response.context['group'].description, self.group.description
-        )
-        self.assertEqual(
-            response.context['group'].slug, self.group.slug
-        )
-
-
-class PaginatorViewsTest(TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.group = Group.objects.create(
-            title='Тестовая группа',
-            slug='test-slug',
-            description='Тестовое описание',
-        )
-        cls.user = User.objects.create(username='author')
-        cls.post = Post.objects.bulk_create(
-            Post(author=cls.user,
-                 text=f'Тестовый пост {i}',
-                 group=cls.group)
-            for i in range(POSTS_PER_PAGE + PAGE_2_POSTS)
-        )
-
-    def setUp(self):
-        self.guest_client = Client()
+        group = response.context['group']
+        self.assertEqual(group.id, self.group.id)
+        self.assertEqual(group.title, self.group.title)
+        self.assertEqual(group.description, self.group.description)
+        self.assertEqual(group.slug, self.group.slug)
 
     def test_pagination_page_1_and_page_2(self):
         """Пагинатор работает правильно на 1 и 2 странице шаблона"""
-        test_cases = [
-            (HOME_URL, POSTS_PER_PAGE, PAGE_2_POSTS),
-            (PROFILE_URL, POSTS_PER_PAGE, PAGE_2_POSTS),
-            (GROUP_LIST_URL, POSTS_PER_PAGE, PAGE_2_POSTS),
-        ]
-        for url, page_1, page_2 in test_cases:
-            with self.subTest():
-                response = self.guest_client.get(url)
-                self.assertEqual(len(response.context['page_obj']), page_1)
-                response = self.guest_client.get(f"{url}?page=2")
-                self.assertEqual(len(response.context['page_obj']), page_2)
+        Post.objects.all().delete()
+        self.post = Post.objects.bulk_create(
+            Post(author=self.user,
+                 text=f'Тестовый пост {i}',
+                 group=self.group)
+            for i in range(POSTS_PER_PAGE + PAGE_2_POSTS)
+        )
+        test_cases = {
+            HOME_URL: POSTS_PER_PAGE,
+            HOME_URL_2_PAGE: PAGE_2_POSTS,
+            PROFILE_URL: POSTS_PER_PAGE,
+            PROFILE_URL_2_PAGE: PAGE_2_POSTS,
+            GROUP_LIST_URL: POSTS_PER_PAGE,
+            GROUP_LIST_URL_2_PAGE: PAGE_2_POSTS,
+        }
+        for url, page_posts in test_cases.items():
+            with self.subTest(url):
+                self.assertEqual(
+                    len(self.guest_client.get(url).context['page_obj']),
+                    page_posts
+                )
