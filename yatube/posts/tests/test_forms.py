@@ -84,19 +84,17 @@ class PostFormTests(TestCase):
         """Проверяем labels и help_text формы"""
         form = PostForm()
         field_tests = [
-            ('text', 'Текст поста', 'Текст нового поста'),
-            ('group', 'Группа', 'Группа, к которой будет относится новый пост')
+            ('text', 'Текст поста', 'Текст нового поста', forms.CharField),
+            ('group', 'Группа', 'Группа, к которой будет относится новый пост',
+             forms.ModelChoiceField)
         ]
 
-        for field_name, expected_label, expected_help_text in field_tests:
+        for field_name, label, help_text, form_type in field_tests:
             with self.subTest(field_name=field_name):
                 field = form.fields[field_name]
-                self.assertEqual(field.label, expected_label)
-                self.assertEqual(field.help_text, expected_help_text)
-                if field_name == 'text':
-                    self.assertEqual(type(field), forms.CharField)
-                elif field_name == 'group':
-                    self.assertEqual(type(field), forms.ModelChoiceField)
+                self.assertEqual(field.label, label)
+                self.assertEqual(field.help_text, help_text)
+                self.assertEqual(type(field), form_type)
 
     def test_post_create_page_show_correct_context(self):
         """Шаблон post_create сформирован с правильным контекстом."""

@@ -63,6 +63,14 @@ class PostURLTests(TestCase):
             with self.subTest(url):
                 if expected_context == 'page_obj':
                     self.assertEqual(len(context['page_obj']), 1)
+                    self.assertEqual(context['page_obj'][0].id,
+                                     self.post.id)
+                    self.assertEqual(context['page_obj'][0].text,
+                                     self.post.text)
+                    self.assertEqual(context['page_obj'][0].author,
+                                     self.post.author)
+                    self.assertEqual(context['page_obj'][0].group.id,
+                                     self.group.id)
                 else:
                     post = context['post']
                     self.assertEqual(post.id, self.post.id)
@@ -70,8 +78,8 @@ class PostURLTests(TestCase):
                     self.assertEqual(post.author, self.post.author)
                     self.assertEqual(post.group, self.post.group)
 
-    def test_post_not_in_second_group(self):
-        """Проверяем, что пост не появляется на странице второй группы"""
+    def test_post_not_in_another_group(self):
+        """Проверяем, что пост не появляется на странице другой группы"""
         response = self.client.get(GROUP2_LIST_URL)
         self.assertNotIn(self.post, response.context['page_obj'])
 
