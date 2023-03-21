@@ -14,6 +14,9 @@ POST_CREATE_URL = reverse('posts:post_create')
 LOGIN_URL = reverse('users:login')
 REDIRECT_POST_CREATE = f"{LOGIN_URL}?next={POST_CREATE_URL}"
 PAGE_404_URL = '/unexisting_page/'
+FOLLOW_INDEX_URL = reverse('posts:follow_index')
+REDIRECT_FOLLOW_INDEX_URL = f"{LOGIN_URL}?next={FOLLOW_INDEX_URL}"
+PROFILE_URL = reverse('posts:profile', args=[USERNAME])
 
 
 class PostURLTests(TestCase):
@@ -39,11 +42,8 @@ class PostURLTests(TestCase):
 
     def setUp(self):
         cache.clear()
-        # Создаем неавторизованный клиент
         self.guest = Client()
-        # Создаем второй клиент
         self.author = Client()
-        # Авторизуем пользователя
         self.author.force_login(self.user)
         self.another = Client()
         self.another.force_login(self.user_not_author)
@@ -64,6 +64,8 @@ class PostURLTests(TestCase):
             (self.POST_EDIT_URL, self.guest, 302),
             (self.ADD_COMMENT_URL, self.guest, 302),
             (PAGE_404_URL, self.guest, 404),
+            (FOLLOW_INDEX_URL, self.another, 200),
+            (FOLLOW_INDEX_URL, self.guest, 302),
         ]
         for url, client, code in test_cases:
             with self.subTest(url=url, code=code):
@@ -76,7 +78,8 @@ class PostURLTests(TestCase):
             (POST_CREATE_URL, self.guest, REDIRECT_POST_CREATE),
             (self.POST_EDIT_URL, self.guest, self.REDIRECT_POST_EDIT),
             (self.POST_EDIT_URL, self.another, self.POST_DETAIL_URL),
-            (self.ADD_COMMENT_URL, self.guest, self.REDIRECT_ADD_COMMENT)
+            (self.ADD_COMMENT_URL, self.guest, self.REDIRECT_ADD_COMMENT),
+            (FOLLOW_INDEX_URL, self.guest, REDIRECT_FOLLOW_INDEX_URL)
         ]
         for url, client, redirect in urls_redirect:
             with self.subTest(url=url, redirect=redirect):
@@ -93,7 +96,8 @@ class PostURLTests(TestCase):
             self.POST_DETAIL_URL: 'posts/post_detail.html',
             self.POST_EDIT_URL: 'posts/create_post.html',
             POST_CREATE_URL: 'posts/create_post.html',
-            PAGE_404_URL: 'core/404.html'
+            PAGE_404_URL: 'core/404.html',
+            FOLLOW_INDEX_URL: 'posts/follow.html'
         }
         for address, template in templates_url_names.items():
             with self.subTest(address=address):

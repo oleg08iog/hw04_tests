@@ -7,7 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from posts.models import Group, Post, User
+from posts.models import Follow, Group, Post, User
 
 from yatube.settings import POSTS_PER_PAGE
 
@@ -24,6 +24,10 @@ GROUP2_LIST_URL = reverse('posts:group_list', args=[SLUG2])
 PROFILE_URL = reverse('posts:profile', args=[USERNAME])
 PROFILE_URL_2_PAGE = f'{PROFILE_URL}?page=2'
 POST_CREATE_URL = reverse('posts:post_create')
+FOLLOW_INDEX_URL = reverse('posts:follow_index')
+FOLLOW_INDEX__URL_2_PAGE = f'{FOLLOW_INDEX_URL}?page=2'
+FOLLOW_PROFILE_URL = reverse('posts:profile_follow', args=[USERNAME])
+UNFOLLOW_PROFILE_URL = reverse('posts:profile_unfollow', args=[USERNAME])
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
@@ -34,6 +38,7 @@ class PostURLTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = User.objects.create(username=USERNAME)
+        cls.user_not_author = User.objects.create(username='not_author')
         cls.group = Group.objects.create(
             title='Тестовая группа',
             slug=SLUG,
@@ -74,8 +79,11 @@ class PostURLTests(TestCase):
     def setUp(self):
         cache.clear()
         self.guest_client = Client()
-        self.authorized_client = Client()
-        self.authorized_client.force_login(self.user)
+        self.author = Client()
+        self.author.force_login(self.user)
+        self.another = Client()
+        self.another.force_login(self.user_not_author)
+        self.another.get(FOLLOW_PROFILE_URL)
 
     def test_cache_index_page(self):
         """Проверяем кеширования главной страницы"""
@@ -94,13 +102,14 @@ class PostURLTests(TestCase):
         """Шаблоны сформированы с правильным контекстом."""
         urls = {
             HOME_URL: 'page_obj',
+            FOLLOW_INDEX_URL: 'page_obj',
             GROUP_LIST_URL: 'page_obj',
             PROFILE_URL: 'page_obj',
             self.POST_DETAIL_URL: 'post',
         }
 
         for url, expected_context in urls.items():
-            context = self.authorized_client.get(url).context
+            context = self.another.get(url).context
             with self.subTest(url):
                 if expected_context == 'page_obj':
                     self.assertEqual(len(context['page_obj']), 1)
@@ -120,7 +129,7 @@ class PostURLTests(TestCase):
 
     def test_author_on_profile_page(self):
         """Проверяем, что автор находится на своей странице профиля"""
-        response = self.authorized_client.get(PROFILE_URL)
+        response = self.client.get(PROFILE_URL)
         self.assertEqual(response.context['author'], self.user)
 
     def test_group_details(self):
@@ -148,10 +157,27 @@ class PostURLTests(TestCase):
             PROFILE_URL_2_PAGE: PAGE_2_POSTS,
             GROUP_LIST_URL: POSTS_PER_PAGE,
             GROUP_LIST_URL_2_PAGE: PAGE_2_POSTS,
+            FOLLOW_INDEX_URL: POSTS_PER_PAGE,
+            FOLLOW_INDEX__URL_2_PAGE: PAGE_2_POSTS,
         }
         for url, page_posts in test_cases.items():
             with self.subTest(url):
                 self.assertEqual(
-                    len(self.authorized_client.get(url).context['page_obj']),
+                    len(self.another.get(url).context['page_obj']),
                     page_posts
                 )
+
+    def test_authorized_user_can_follow_and_unfollow(self):
+        """Авторизованный пользователь может подписываться
+        на других авторов и удалять их из подписок."""
+        self.another.get(FOLLOW_PROFILE_URL)
+        self.assertEqual(Follow.objects.count(), 1)
+        self.another.get(UNFOLLOW_PROFILE_URL)
+        self.assertEqual(Follow.objects.count(), 0)
+
+    def test_post_not_in_follow_index_who_not_subscribe(self):
+        """Проверяем, что пост автора не появляется
+        в ленте тех, кто на него не подписан"""
+        self.another.get(UNFOLLOW_PROFILE_URL)
+        response = self.another.get(FOLLOW_INDEX_URL)
+        self.assertNotIn(self.post, response.context['page_obj'])
