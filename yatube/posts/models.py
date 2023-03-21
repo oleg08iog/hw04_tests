@@ -39,6 +39,11 @@ class Post(models.Model):
         related_name='posts',
         verbose_name=_("Группа")
     )
+    image = models.ImageField(
+        (_("Картинка")),
+        upload_to='posts/',
+        blank=True
+    )
 
     class Meta:
         ordering = ('-pub_date',)
@@ -47,3 +52,51 @@ class Post(models.Model):
 
     def __str__(self) -> str:
         return self.text[0:30]
+
+
+class Comment(models.Model):
+    post = models.ForeignKey(
+        Post,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='comments',
+        verbose_name=_("Пост")
+    )
+    author = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='comments',
+        verbose_name=_("Автор")
+    )
+    text = models.TextField(max_length=200)
+    created = models.DateTimeField(_("Дата публикации"), auto_now_add=True)
+
+    class Meta:
+        ordering = ('-created',)
+        verbose_name = _('Комментарий')
+        verbose_name_plural = _('Комментарии')
+
+    def __str__(self) -> str:
+        return self.text[0:30]
+
+
+class Follow(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='follower',
+        verbose_name=_("Подписчик")
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='following',
+        verbose_name=_("Автор")
+    )
+
+    class Meta:
+        verbose_name = _('Подписка')
+        verbose_name_plural = _('Подписки')

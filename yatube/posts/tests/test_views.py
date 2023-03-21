@@ -1,4 +1,10 @@
-from django.test import Client, TestCase
+import shutil
+import tempfile
+
+from django.conf import settings
+from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from posts.models import Group, Post, User
@@ -19,7 +25,10 @@ PROFILE_URL = reverse('posts:profile', args=[USERNAME])
 PROFILE_URL_2_PAGE = f'{PROFILE_URL}?page=2'
 POST_CREATE_URL = reverse('posts:post_create')
 
+TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
+
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class PostURLTests(TestCase):
     @classmethod
     def setUpClass(cls):
@@ -35,18 +44,51 @@ class PostURLTests(TestCase):
             slug=SLUG2,
             description='Тестовое описание 2',
         )
+        cls.small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        cls.uploaded = SimpleUploadedFile(
+            name='small.gif',
+            content=cls.small_gif,
+            content_type='image/gif'
+        )
         cls.post = Post.objects.create(
             author=cls.user,
             text='Тестовый пост для 1 группы',
-            group=cls.group
+            group=cls.group,
+            image=cls.uploaded
         )
         cls.POST_DETAIL_URL = reverse('posts:post_detail', args=[cls.post.id])
         cls.POST_EDIT_URL = reverse('posts:post_edit', args=[cls.post.id])
 
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+
     def setUp(self):
+        cache.clear()
         self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
+
+    def test_cache_index_page(self):
+        """Проверяем кеширования главной страницы"""
+        response = self.client.get(HOME_URL)
+        cache_check = response.content
+        Post.objects.all().delete()
+        response_old = self.client.get(HOME_URL)
+        cache_old_check = response_old.content
+        self.assertEqual(cache_old_check, cache_check)
+        cache.clear()
+        response_new = self.client.get(HOME_URL)
+        cache_new_check = response_new.content
+        self.assertNotEqual(cache_old_check, cache_new_check)
 
     def test_pages_show_correct_context(self):
         """Шаблоны сформированы с правильным контекстом."""
@@ -58,7 +100,7 @@ class PostURLTests(TestCase):
         }
 
         for url, expected_context in urls.items():
-            context = self.guest_client.get(url).context
+            context = self.authorized_client.get(url).context
             with self.subTest(url):
                 if expected_context == 'page_obj':
                     self.assertEqual(len(context['page_obj']), 1)
@@ -69,6 +111,7 @@ class PostURLTests(TestCase):
                 self.assertEqual(post.text, self.post.text)
                 self.assertEqual(post.author, self.post.author)
                 self.assertEqual(post.group, self.post.group)
+                self.assertEqual(post.image, self.post.image)
 
     def test_post_not_in_another_group(self):
         """Проверяем, что пост не появляется на странице другой группы"""
@@ -77,7 +120,7 @@ class PostURLTests(TestCase):
 
     def test_author_on_profile_page(self):
         """Проверяем, что автор находится на своей странице профиля"""
-        response = self.client.get(PROFILE_URL)
+        response = self.authorized_client.get(PROFILE_URL)
         self.assertEqual(response.context['author'], self.user)
 
     def test_group_details(self):
@@ -109,6 +152,6 @@ class PostURLTests(TestCase):
         for url, page_posts in test_cases.items():
             with self.subTest(url):
                 self.assertEqual(
-                    len(self.guest_client.get(url).context['page_obj']),
+                    len(self.authorized_client.get(url).context['page_obj']),
                     page_posts
                 )

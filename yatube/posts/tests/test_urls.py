@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -12,6 +13,7 @@ PROFILE_URL = reverse('posts:profile', args=[USERNAME])
 POST_CREATE_URL = reverse('posts:post_create')
 LOGIN_URL = reverse('users:login')
 REDIRECT_POST_CREATE = f"{LOGIN_URL}?next={POST_CREATE_URL}"
+PAGE_404_URL = '/unexisting_page/'
 
 
 class PostURLTests(TestCase):
@@ -32,8 +34,11 @@ class PostURLTests(TestCase):
         cls.POST_DETAIL_URL = reverse('posts:post_detail', args=[cls.post.id])
         cls.POST_EDIT_URL = reverse('posts:post_edit', args=[cls.post.id])
         cls.REDIRECT_POST_EDIT = f"{LOGIN_URL}?next={cls.POST_EDIT_URL}"
+        cls.ADD_COMMENT_URL = reverse('posts:add_comment', args=[cls.post.id])
+        cls.REDIRECT_ADD_COMMENT = f"{LOGIN_URL}?next={cls.ADD_COMMENT_URL}"
 
     def setUp(self):
+        cache.clear()
         # Создаем неавторизованный клиент
         self.guest = Client()
         # Создаем второй клиент
@@ -57,7 +62,8 @@ class PostURLTests(TestCase):
             (self.POST_EDIT_URL, self.another, 302),
             (POST_CREATE_URL, self.guest, 302),
             (self.POST_EDIT_URL, self.guest, 302),
-            ('/unexisting_page/', self.guest, 404),
+            (self.ADD_COMMENT_URL, self.guest, 302),
+            (PAGE_404_URL, self.guest, 404),
         ]
         for url, client, code in test_cases:
             with self.subTest(url=url, code=code):
@@ -69,7 +75,8 @@ class PostURLTests(TestCase):
         urls_redirect = [
             (POST_CREATE_URL, self.guest, REDIRECT_POST_CREATE),
             (self.POST_EDIT_URL, self.guest, self.REDIRECT_POST_EDIT),
-            (self.POST_EDIT_URL, self.another, self.POST_DETAIL_URL)
+            (self.POST_EDIT_URL, self.another, self.POST_DETAIL_URL),
+            (self.ADD_COMMENT_URL, self.guest, self.REDIRECT_ADD_COMMENT)
         ]
         for url, client, redirect in urls_redirect:
             with self.subTest(url=url, redirect=redirect):
@@ -86,6 +93,7 @@ class PostURLTests(TestCase):
             self.POST_DETAIL_URL: 'posts/post_detail.html',
             self.POST_EDIT_URL: 'posts/create_post.html',
             POST_CREATE_URL: 'posts/create_post.html',
+            PAGE_404_URL: 'core/404.html'
         }
         for address, template in templates_url_names.items():
             with self.subTest(address=address):

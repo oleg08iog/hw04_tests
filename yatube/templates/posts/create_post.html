@@ -30,6 +30,7 @@
             {% endif %}
             <form 
               method="post" 
+              enctype="multipart/form-data"
               action="
                 {% if post %}
                     {% url 'posts:post_edit' post.id %}
